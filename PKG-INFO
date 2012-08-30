@@ -1,0 +1,11 @@
+Metadata-Version: 1.1
+Name: python-scribd
+Version: 1.1.0
+Summary: Scribd client library for Python.
+Home-page: http://code.google.com/p/python-scribd
+Author: Arkadiusz Wahlig
+Author-email: arkadiusz.wahlig@gmail.com
+License: New BSD License
+Description: A library providing a high-level object oriented interface to the scribd.com website RESTful API.
+Platform: UNKNOWN
+Provides: scribd
