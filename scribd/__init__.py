@@ -406,7 +406,7 @@ class User(Resource):
             if kwargs['num_start'] >= int(results.attrs['totalResultsAvailable']):
                 break
 
-    def upload(self, file, name=None, **kwargs):
+    def upload(self, targetfile, name=None, **kwargs):
         """Uploads a file object as a new document and returns the
         corresponding document object.
         
@@ -428,6 +428,17 @@ class User(Resource):
             existing file. If None, the name will be read from the "name"
             attribute of the file object (objects created using the open()
             built-in function provide this attribute).
+          req_buffer
+            (optional) A seekable, readable and writable file-like object
+            that temporary data can be stored in while processing the upload.
+            A tempfile.TemporaryFile() is a good choice.
+            If not supplied an in-memory buffer will be used.
+          progress_callback
+            (optional) A function or bound method that's called during the upload
+            to indicate progress. The function must accept two integer arguments,
+            the number of bytes sent and the total bytes to send, respectively.  If
+            not supplied no callback is used and no progress indication is given.
+            
 
         Returns:
             A [Document] object.
@@ -437,12 +448,12 @@ class User(Resource):
             for a list of document's initial resource attributes.
         """
         if name is None:
-            name = file.name
+            name = targetfile.name
         name = os.path.basename(name)
         if 'doc_type' not in kwargs:
             kwargs['doc_type'] = os.path.splitext(name)[-1]
         kwargs['doc_type'] = kwargs['doc_type'].lstrip('.').lower()
-        xml = self._send_request('docs.upload', file=(file.read(), name), **kwargs)
+        xml = self._send_request('docs.upload', file=(targetfile, name), **kwargs)
         return Document(xml, self)
         
     def upload_from_url(self, url, **kwargs):
@@ -804,7 +815,7 @@ class Document(Resource):
 # Functions
 #
 
-def send_request(method, **fields):
+def send_request(method, progress_callback=None, req_buffer=None, **fields):
     """Sends an API request to the HOST and returns the XML response.
     
     Parameters:
@@ -851,7 +862,10 @@ def send_request(method, **fields):
     del deb_fields['method'], deb_fields['api_key']
     t = deb_fields.get('file', None)
     if t is not None:
-        deb_fields['file'] = (t[0][:16] + '(...)', t[1])
+        if isinstance(t[0], str):
+            deb_fields['file'] = (t[0][:16] + '(...)', t[1])
+        else:
+            deb_fields['file'] = (repr(t[0]), t[1])
     logger.debug('Request: %s(%s)', method,
                  ', '.join('%s=%s' % (k, repr(v)) for k, v in deb_fields.items()))
 
@@ -867,7 +881,7 @@ def send_request(method, **fields):
     start_time = time()
     while True:
         try:
-            resp = post_multipart(HOST, REQUEST_PATH, fields.items(), headers, PORT)
+            resp = post_multipart(HOST, REQUEST_PATH, fields.items(), headers, PORT, req_buffer=req_buffer, progress_callback=progress_callback)
         except Exception, err:
             if time() - start_time < 10:
                 continue
@@ -887,7 +901,7 @@ def send_request(method, **fields):
                             'remote host response could not be interpreted')
             else:
                 raise MalformedResponseError(
-                        'unexpected remote host response format: %s' % ctype)
+                        'unexpected remote host response format: %s, contents are: %s' % (ctype, resp.read(100)))
         elif status == '500': # Internal Server Error
             # Retrying usually helps if this happens so lets do so for max. 10 seconds.
             if time() - start_time < 10:

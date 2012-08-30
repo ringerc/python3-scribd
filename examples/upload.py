@@ -6,6 +6,7 @@ Uploading a text file to scribd.com and removing it afterwards.
 
 import time
 import logging
+import tempfile
 
 import scribd
 
@@ -14,10 +15,12 @@ import scribd
 API_KEY = ''
 API_SECRET = ''
 
-
 # Uncomment to enable scribd package debugging.
 #logging.basicConfig(level=logging.DEBUG)
 
+last_bytes_sent = 0
+def progress(bytes_sent, bytes_total):
+    print("%s of %s (%s%%)" % (bytes_sent, bytes_total, bytes_sent*100/bytes_total))
 
 def main():
     # Configure the Scribd API.
@@ -28,7 +31,11 @@ def main():
         print 'Uploading a document...'
         
         # Note that the default API user object is used.
-        doc = scribd.api_user.upload(open('test.txt'))
+        doc = scribd.api_user.upload(
+            open('test.txt','rb'),
+            progress_callback=progress,
+            req_buffer = tempfile.TemporaryFile()
+            )
         print 'Done (doc_id=%s, access_key=%s).' % (doc.id, doc.access_key)
         
         # Poll API until conversion is complete.
@@ -58,7 +65,6 @@ def main():
 
     except scribd.ResponseError, err:
         print 'Scribd failed: code=%d, error=%s' % (err.errno, err.strerror)
-
 
 if __name__ == '__main__':
     main()
