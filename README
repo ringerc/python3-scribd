@@ -1,0 +1,8 @@
+This is a working branch of python-scribd from http://code.google.com/p/python-scribd/
+
+The changes in this repository have been sent upstream to the issue tracker.
+
+   http://code.google.com/p/python-scribd/issues/detail?id=4
+   http://code.google.com/p/python-scribd/issues/detail?id=5
+
+so you shouldn't need to use this working branch once Scribd merge the changes.
