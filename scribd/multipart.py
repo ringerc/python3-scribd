@@ -12,9 +12,9 @@ File buffer and progress reporting added by Craig Ringer
 """
 
 import sys
-import httplib
+import http.client
 import mimetypes
-import StringIO
+import io
 from random import randrange
 
 # How many bytes are copied at once between file-like objects
@@ -36,7 +36,7 @@ def post_multipart(host, selector, fields=(), headers=None, port=None, req_buffe
         field name and "value" may be either a string or a (data, name)
         tuple in which case the "data" will be sent as a file of name "name".
         For (data,name) tuples the data part must be a string or a file-like
-        object.
+        object in binary mode, like an io.BytesIO or a file("fn", "r+b")
       headers
         A mapping of additional HTTP headers.
       port
@@ -55,32 +55,21 @@ def post_multipart(host, selector, fields=(), headers=None, port=None, req_buffe
     Returns:
         A httplib.HTTPResponse object.
     """
-    boundary = '----------%s--%s----------' % \
-        (randrange(sys.maxint), randrange(sys.maxint))
+    boundary = '----------%s--%s----------' % (randrange(sys.maxsize), randrange(sys.maxsize))
     if req_buffer is None:
-        req_buffer = StringIO.StringIO()
+        req_buffer = io.BytesIO()
     if headers is None:
         headers = {}
     buffer_size = encode_multipart_formdata(fields, boundary, req_buffer)
     # Send the request
-    h = httplib.HTTPConnection(host, port)
+    h = http.client.HTTPConnection(host, port)
     try:
-        h.putrequest('POST', selector)
         headers['Content-Type'] = 'multipart/form-data; boundary=%s' % boundary
         headers['Content-Length'] = buffer_size
-        for (k,v) in headers.items():
-            h.putheader(k,v)
-        h.endheaders()
-        # Progressively send data
-        nextblock = req_buffer.read(upload_block_size)
-        while nextblock:
-            h.send(nextblock)
-            if progress_callback is not None:
-                progress_callback( req_buffer.tell(), buffer_size )
-            nextblock = req_buffer.read(upload_block_size)
-        # And wait for server to respond
+        h.request('POST', selector, body=req_buffer, headers=headers)
     except Exception as ex:
         h.close()
+        raise
     return h.getresponse()
 
 def copy_to_buffer(outfile, data):
@@ -98,23 +87,24 @@ def copy_to_buffer(outfile, data):
 
 def encode_multipart_formdata(fields, boundary, req_buffer):
     req_buffer.seek(0)
+    boundary = boundary.encode("ascii")
     for key, value in fields:
-        req_buffer.write('--' + boundary + '\r\n')
+        req_buffer.write(b'--' + boundary + b'\r\n')
         if isinstance(value, tuple): # file
             data, name = value
             ctype = mimetypes.guess_type(name)[0] or 'application/octet-stream'
-            req_buffer.write('Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % (key, name))
-            req_buffer.write('Content-Type: %s\r\n' % ctype)
-            req_buffer.write('\r\n')
+            req_buffer.write(('Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % (key, name)).encode("utf-8"))
+            req_buffer.write(('Content-Type: %s\r\n' % ctype).encode("utf-8"))
+            req_buffer.write(b'\r\n')
             copy_to_buffer(req_buffer, data)
         elif isinstance(value, str): # str
-            req_buffer.write('Content-Disposition: form-data; name="%s"\r\n' % key)
-            req_buffer.write('\r\n')
-            req_buffer.write(value)
+            req_buffer.write(('Content-Disposition: form-data; name="%s"\r\n' % key).encode("utf-8"))
+            req_buffer.write(b'\r\n')
+            req_buffer.write(value.encode("utf-8"))
         else:
             raise TypeError('value must be a tuple or str, not %s' % type(value).__name__)
-        req_buffer.write('\r\n')
-    req_buffer.write('--' + boundary + '--\r\n')
+        req_buffer.write(b'\r\n')
+    req_buffer.write(b'--' + boundary + b'--\r\n')
     req_buffer.flush()
     buffer_size = req_buffer.tell()
     req_buffer.truncate()

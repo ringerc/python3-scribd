@@ -35,7 +35,7 @@ class Element(object):
             self.text = self._nodes[0].data.strip()
             self._nodes = []
         self.attrs = {}
-        for name, value in element.attributes.items():
+        for name, value in list(element.attributes.items()):
             self.attrs[name] = value
 
     def index(self, name):

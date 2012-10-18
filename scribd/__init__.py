@@ -32,14 +32,7 @@ import sys
 import logging
 import os
 from time import time
-
-# Both md5 module (deprecated since Python 2.5) and hashlib provide the
-# same md5 object.
-if sys.version_info >= (2, 5):
-    from hashlib import md5
-else:
-    from md5 import md5
-
+from hashlib import md5
 from scribd.multipart import post_multipart
 from scribd import xmlparse
 
@@ -143,7 +136,7 @@ class Resource(object):
         # the object during its lifetime have to be setup at this point.
         # This is used to distinguish between instance variables and
         # the resource attributes.
-        self._instance_vars_names = self.__dict__.keys()
+        self._instance_vars_names = list(self.__dict__.keys())
 
         if xml is not None:
             self._load_attributes(xml)
@@ -844,12 +837,12 @@ def send_request(method, progress_callback=None, req_buffer=None, **fields):
     fields['method'] = method
     fields['api_key'] = api_key
 
-    for k, v in fields.items():
+    for k, v in list(fields.items()):
         if v is None:
             del fields[k]
         else:
-            if isinstance(v, unicode):
-                v = v.encode('utf8')
+            if isinstance(v, str):
+                pass
             elif isinstance(v, tuple): # file
                 v = (v[0], str(v[1])) # (data, name)
             elif isinstance(v, bool):
@@ -867,22 +860,25 @@ def send_request(method, progress_callback=None, req_buffer=None, **fields):
         else:
             deb_fields['file'] = (repr(t[0]), t[1])
     logger.debug('Request: %s(%s)', method,
-                 ', '.join('%s=%s' % (k, repr(v)) for k, v in deb_fields.items()))
+                 ', '.join('%s=%s' % (k, repr(v)) for k, v in list(deb_fields.items())))
 
     sign_fields = fields.copy()
     sign_fields.pop('file', None)
-    sign_items = sign_fields.items()
+    sign_items = list(sign_fields.items())
     sign_items.sort()
-    sign = md5(api_secret + ''.join(k + v for k, v in sign_items))
+    datatohash = (api_secret + ''.join( k + v for k, v in sign_items)).encode("utf-8")
+    sign = md5(datatohash)
     fields['api_sig'] = sign.hexdigest()
+
+    logger.debug("Request api_sig: " + sign.hexdigest())
 
     headers = {'Cache-Control': 'no-store'}
 
     start_time = time()
     while True:
         try:
-            resp = post_multipart(HOST, REQUEST_PATH, fields.items(), headers, PORT, req_buffer=req_buffer, progress_callback=progress_callback)
-        except Exception, err:
+            resp = post_multipart(HOST, REQUEST_PATH, list(fields.items()), headers, PORT, req_buffer=req_buffer, progress_callback=progress_callback)
+        except Exception as err:
             if time() - start_time < 10:
                 continue
             raise NotReadyError(str(err))
@@ -1002,7 +998,7 @@ def update(docs, **fields):
     # We have to set the attributes one by one to let the document's
     # __setattr__() decide what to do with it.
     for doc in docs:
-        for name, value in fields.items():
+        for name, value in list(fields.items()):
             setattr(doc, name, value)
 
 
@@ -1060,8 +1056,14 @@ def config(key, secret):
     turn provide you with both values.
     """
     global api_key, api_secret
-    api_key = key
-    api_secret = secret
+    if isinstance(key, str):
+        api_key = key
+    else:
+        raise TypeError("API key must be unicode string")
+    if isinstance(secret, str):
+        api_secret = secret
+    else:
+        raise TypeError("API secret must be unicode string")
 
 
 #

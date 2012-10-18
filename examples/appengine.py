@@ -20,10 +20,14 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 
 import scribd
 
+try:
+    from api_config import *
+except ImportError as ex:
+    print("You need to copy api_config.py.tmpl to api_config.py")
+    print("and add your Scribd API key and API secret to it")
+    print("before running appengine.py.")
+    sys.exit(1)
 
-# Set your API key and secret here.
-API_KEY = ''
-API_SECRET = ''
 
 
 class Form(webapp.RequestHandler):

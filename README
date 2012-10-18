@@ -1,7 +1,14 @@
 This is a working branch of python-scribd from http://code.google.com/p/python-scribd/
 
+It adds support for progress indication and progressive file reading ports the
+code to python3. The code will no longer run on python2.
+
 The changes in this repository have been sent upstream to the issue tracker.
 
+Port to python3:
+   http://code.google.com/p/python-scribd/issues/detail?id=6
+
+Python2-compatible changes:
    http://code.google.com/p/python-scribd/issues/detail?id=4
    http://code.google.com/p/python-scribd/issues/detail?id=5
 
